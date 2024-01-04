@@ -39,6 +39,7 @@ public class CosmosDbService
 
         CosmosClient client = new CosmosClientBuilder(endpoint, key)
             .WithSerializerOptions(options)
+            .WithConnectionModeGateway()
             .Build();
 
         Database? database = client?.GetDatabase(databaseName);

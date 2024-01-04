@@ -58,3 +58,6 @@ hs_err_pid*
 /target/
 
 *.iml
+/C#/CosmosDB-NoSQL_CognitiveSearch/.vs/CosmosRecipeGuide
+/C#/CosmosDB-NoSQL_CognitiveSearch/bin/Debug/net7.0
+/C#/CosmosDB-NoSQL_CognitiveSearch/obj

@@ -18,16 +18,16 @@ namespace CosmosRecipeGuide
     {
         private const string _SemanticSearchConfigName = "my-semantic-config";
 
-        private readonly SearchIndexClient? _indexClient=null;
+        private readonly SearchIndexClient? _indexClient = null;
         private readonly SearchClient? _searchClient = null;
 
-        private readonly string _searchIndexName =string.Empty;
-        private readonly IConfiguration? _configuration =null;
+        private readonly string _searchIndexName = string.Empty;
+        private readonly IConfiguration? _configuration = null;
 
         public CognitiveSearchService(IConfiguration config)
         {
             _configuration = config;
-            
+
             _searchIndexName = _configuration["SearchIndexName"];
 
             _indexClient = CreateSearchIndexClient();
@@ -63,20 +63,20 @@ namespace CosmosRecipeGuide
         public async void UploadandIndexDocuments(List<Recipe> Recipes)
         {
             await _searchClient.IndexDocumentsAsync(IndexDocumentsBatch.Upload(ConvertRecipeToCogSarchDoc(Recipes)));
-            
+
         }
 
         //Reducing the number of attributes in the class
         private List<CogSearchDoc> ConvertRecipeToCogSarchDoc(List<Recipe> recipes)
         {
-            List<CogSearchDoc> cogSearchdocs=new List<CogSearchDoc>();
+            List<CogSearchDoc> cogSearchdocs = new List<CogSearchDoc>();
             foreach (Recipe recipe in recipes)
             {
-                CogSearchDoc cdoc=new CogSearchDoc();
+                CogSearchDoc cdoc = new CogSearchDoc();
                 cdoc.id = recipe.id;
                 cdoc.name = recipe.name;
-                cdoc.description = recipe.description;  
-                cdoc.embedding  = recipe.embedding;
+                cdoc.description = recipe.description;
+                cdoc.embedding = recipe.embedding;
 
                 cogSearchdocs.Add(cdoc);
             }
@@ -85,16 +85,20 @@ namespace CosmosRecipeGuide
         }
 
 
-        internal async Task<List<string>> SingleVectorSearch(float[] queryEmbeddings, int searchCount = 5)
+        internal async Task<List<string>> SingleVectorSearch(float[] queryEmbeddings, int searchCount = 1)
         {
-
             // Perform the vector similarity search  
-            var vector = new SearchQueryVector { K = 3, Fields = "embedding", Value = queryEmbeddings.ToArray() };
+            VectorSearchOptions vectorSearch = new VectorSearchOptions();
+            VectorizedQuery w = new VectorizedQuery(queryEmbeddings);
+            w.Fields.Add("embedding");
+            vectorSearch.Queries.Add(w);
+            
+            //var vector = new SearchQueryVector { K = 3, Fields = "embedding", Value = queryEmbeddings.ToArray() };
             var searchOptions = new SearchOptions
             {
-                Vector = vector,
+                VectorSearch = vectorSearch,
                 Size = searchCount,
-                Select = { "id"},
+                Select = { "id" }
             };
 
             SearchResults<SearchDocument> response = await _searchClient.SearchAsync<SearchDocument>(null, searchOptions);
@@ -102,9 +106,10 @@ namespace CosmosRecipeGuide
             List<string> ids = new List<string>();
             await foreach (SearchResult<SearchDocument> result in response.GetResultsAsync())
             {
-                ids.Add(result.Document["id"].ToString());    
+                ids.Add(result.Document["id"].ToString());
             }
-            return ids; 
+
+            return ids;
         }
 
 
@@ -127,7 +132,7 @@ namespace CosmosRecipeGuide
             return _searchClient;
         }
 
-              
+
         private void DeleteIndexIfExists(string indexName, SearchIndexClient _indexClient)
         {
             try
@@ -151,27 +156,34 @@ namespace CosmosRecipeGuide
         internal SearchIndex BuildVectorSearchIndex(string name)
         {
             string vectorSearchConfigName = "my-vector-config";
+            string vectorSearchAlgName = "my-algorithms-config";
 
             SearchIndex searchIndex = new(name)
             {
                 VectorSearch = new()
                 {
-                    AlgorithmConfigurations =
-                {
-                    new VectorSearchAlgorithmConfiguration(vectorSearchConfigName, "hnsw")
-                }
+
+                    Algorithms =
+                    {
+                        new HnswAlgorithmConfiguration(vectorSearchAlgName)
+                    },
+                    Profiles =
+                    {
+                        new VectorSearchProfile(vectorSearchConfigName, vectorSearchAlgName)
+                    }
                 },
-                SemanticSettings = new()
+                
+                SemanticSearch = new()
                 {
 
                     Configurations =
                     {
                        new SemanticConfiguration(_SemanticSearchConfigName, new()
                        {
-                           TitleField = new(){ FieldName = "name" },
+                           TitleField = new SemanticField("name"),
                            ContentFields =
                            {
-                               new() { FieldName = "description" }
+                               new SemanticField("description")
                            }
                        })
 
@@ -184,14 +196,15 @@ namespace CosmosRecipeGuide
                 new SearchableField("description") { IsFilterable = true },
                 new SearchField("embedding", SearchFieldDataType.Collection(SearchFieldDataType.Single))
                 {
+                    
                     IsSearchable = true,
-                    Dimensions = 1536,
-                    VectorSearchConfiguration = vectorSearchConfigName
+                    VectorSearchDimensions = 1536,
+                    VectorSearchProfileName  = vectorSearchConfigName
                 }
             }
             };
             return searchIndex;
         }
-         
+
     }
 }
